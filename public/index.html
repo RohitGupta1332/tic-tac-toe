@@ -1,0 +1,205 @@
+<!DOCTYPE html>
+<html lang="en">
+
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Tic Tac Toe</title>
+    <style>
+        body {
+            padding: 0;
+            margin: 0;
+            font-family: 'Arial', sans-serif;
+            background: linear-gradient(135deg, rgba(255, 255, 255, 0.1), rgba(200, 200, 200, 0.1)),
+                url('background2.avif');
+            background-size: cover;
+            background-position: center;
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            height: 100vh;
+            flex-direction: column;
+            box-shadow: inset 0 0 10px rgba(0, 0, 0, 0.1);
+        }
+
+        h1 {
+            text-align: center;
+            font-size: 36px;
+            color: #c2c1c1;
+            margin-bottom: 20px;
+        }
+
+        .roomId {
+            font-size: 20px;
+            color: #f7f2f2;
+            margin-bottom: 30px;
+        }
+
+        .board {
+            width: 400px;
+            height: 400px;
+            display: grid;
+            grid-template-columns: repeat(3, 1fr);
+            grid-template-rows: repeat(3, 1fr);
+            gap: 10px;
+            border-radius: 10px;
+        }
+
+        .cell {
+            width: 100%;
+            height: 100%;
+            display: flex;
+            justify-content: center;
+            align-items: center;
+            font-size: 48px;
+            font-weight: bold;
+            background-color: #f0f0f0;
+            border-radius: 8px;
+            cursor: pointer;
+            transition: background-color 0.3s ease;
+        }
+
+        .cell:hover {
+            background-color: #e2e2e2;
+        }
+
+        .cell:active {
+            background-color: #d4d4d4;
+        }
+
+        .player-X {
+            color: #e63946;
+        }
+
+        .player-O {
+            color: #1d3557;
+        }
+
+        .victory-message {
+            font-size: 24px;
+            color: #2d6a4f;
+            font-weight: bold;
+            text-align: center;
+            margin-top: 20px;
+        }
+
+        .roomId {
+            font-size: 20px;
+            color: #555;
+        }
+    </style>
+</head>
+
+<body>
+    <div class="container">
+        <h1>Tic Tac Toe</h1>
+        <h2 class="roomId"></h2>
+        <div class="board">
+            <button class="cell"></button>
+            <button class="cell"></button>
+            <button class="cell"></button>
+            <button class="cell"></button>
+            <button class="cell"></button>
+            <button class="cell"></button>
+            <button class="cell"></button>
+            <button class="cell"></button>
+            <button class="cell"></button>
+        </div>
+        <div class="victory-message"></div>
+    </div>
+
+    <script src="https://cdn.socket.io/4.5.4/socket.io.min.js"></script>
+    <script>
+        const socket = io("http://localhost:3000");
+
+        const cells = document.querySelectorAll('.cell');
+        const winnerPattern = [
+            [0, 1, 2],
+            [3, 4, 5],
+            [6, 7, 8],
+            [0, 3, 6],
+            [1, 4, 7],
+            [2, 5, 8],
+            [0, 4, 8],
+            [2, 4, 6]
+        ];
+
+        let mySymbol;
+        let turn = false;
+        let gameOver = false;
+
+        //Join room and display roomId
+        const urlParams = new URLSearchParams(window.location.search);
+        const roomId = urlParams.get('roomId');
+        document.querySelector('.roomId').textContent = `Room Id: ${roomId}`;
+
+        socket.on('symbol', (symbol) => {
+            mySymbol = symbol;
+            turn = mySymbol === 'X';
+            alert(`You are player ${mySymbol}`);
+        });
+
+        //display message if room is full
+        socket.on('roomFull', (message) => {
+            alert(message);
+            window.location.href = 'room.html';
+        });
+
+        cells.forEach((cell, index) => {
+            cell.addEventListener('click', () => {
+                if (turn && !cell.textContent && !gameOver) {
+                    cell.textContent = mySymbol;
+                    cell.classList.add(mySymbol === 'X' ? 'player-X' : 'player-O');
+                    turn = false;
+                    socket.emit('move', { roomId, index, symbol: mySymbol });
+                    checkWinner();
+                }
+            });
+        });
+
+        //checking winner
+        function checkWinner() {
+            winnerPattern.forEach((pattern) => {
+                const a = cells[pattern[0]].textContent;
+                const b = cells[pattern[1]].textContent;
+                const c = cells[pattern[2]].textContent;
+                if (a && a === b && b === c) {
+                    const winner = a;
+                    socket.emit('winner', { roomId, winner });
+                    gameOver = true;
+                    document.querySelector('.victory-message').textContent = `Player ${winner} wins!`;
+                }
+            });
+        }
+
+        //handling real time moves
+        socket.on('move', ({ index, symbol }) => {
+            cells[index].textContent = symbol;
+            cells[index].classList.add(symbol === 'X' ? 'player-X' : 'player-O');
+            turn = symbol !== mySymbol;
+        });
+
+        //Winner announcement
+        socket.on('winner', (winner) => {
+            document.querySelector('.victory-message').textContent = `Player ${winner} wins!`;
+            gameOver = true;
+            cells.forEach(cell => (cell.textContent = ''));
+        });
+
+        socket.on("message", ({ id, message }) => {
+            if (id != socket.id) {
+                alert(message);
+            }
+
+        });
+
+        socket.on("connect", () => {
+            console.log(`Connected to the server, joined room ${roomId}`);
+            socket.emit("join", { roomId });
+        });
+    </script>
+</body>
+
+</html>
